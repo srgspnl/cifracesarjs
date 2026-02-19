@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cifra de César — Demonstração Didática</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green: #00ff88;
+    --green-dim: #00cc66;
+    --green-dark: #003322;
+    --green-glow: rgba(0,255,136,0.15);
+    --bg: #050f0a;
+    --bg2: #0a1a10;
+    --bg3: #0d2018;
+    --border: rgba(0,255,136,0.3);
+    --text: #b0ffd5;
+    --amber: #ffcc00;
+    --red: #ff4466;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Share Tech Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scanlines overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.15) 2px,
+      rgba(0,0,0,0.15) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* CRT flicker */
+  @keyframes flicker {
+    0%,100% { opacity: 1; }
+    92% { opacity: 1; }
+    93% { opacity: 0.85; }
+    94% { opacity: 1; }
+  }
+  body { animation: flicker 8s infinite; }
+
+  header {
+    text-align: center;
+    padding: 2.5rem 1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--green), transparent);
+  }
+
+  .logo {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(1.4rem, 4vw, 2.6rem);
+    font-weight: 900;
+    color: var(--green);
+    text-shadow: 0 0 20px var(--green), 0 0 50px rgba(0,255,136,0.3);
+    letter-spacing: 0.15em;
+  }
+
+  .subtitle {
+    margin-top: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--green-dim);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+  }
+
+  .badge {
+    display: inline-block;
+    margin-top: 0.6rem;
+    background: var(--green-dark);
+    border: 1px solid var(--border);
+    color: var(--green);
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    padding: 0.2rem 0.8rem;
+    border-radius: 2px;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    display: grid;
+    gap: 2rem;
+  }
+
+  /* Theory box */
+  .theory {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--green);
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .theory::before {
+    content: '// TEORIA';
+    position: absolute;
+    top: 0.5rem; right: 0.8rem;
+    font-size: 0.65rem;
+    color: rgba(0,255,136,0.3);
+    letter-spacing: 0.2em;
+  }
+
+  .theory h2 {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.9rem;
+    color: var(--green);
+    margin-bottom: 0.8rem;
+    letter-spacing: 0.15em;
+  }
+
+  .theory p {
+    font-size: 0.82rem;
+    line-height: 1.7;
+    color: var(--text);
+    opacity: 0.9;
+  }
+
+  .formula {
+    display: inline-block;
+    margin: 0.8rem 0;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 0.6rem 1.2rem;
+    color: var(--amber);
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+  }
+
+  /* Alphabet wheel */
+  .wheel-section {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    text-align: center;
+  }
+
+  .wheel-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.75rem;
+    color: var(--green-dim);
+    letter-spacing: 0.2em;
+    margin-bottom: 1rem;
+  }
+
+  .alphabet-row {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 3px;
+    margin: 0.3rem 0;
+    overflow-x: auto;
+  }
+
+  .alpha-cell {
+    min-width: 26px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    font-size: 0.72rem;
+    transition: all 0.3s;
+    flex-shrink: 0;
+  }
+
+  .alpha-cell.plain {
+    background: var(--bg3);
+    color: var(--text);
+  }
+
+  .alpha-cell.cipher {
+    background: var(--green-dark);
+    color: var(--green);
+  }
+
+  .alpha-cell.highlight-plain {
+    background: var(--amber) !important;
+    color: #000 !important;
+    border-color: var(--amber) !important;
+    box-shadow: 0 0 10px rgba(255,204,0,0.5);
+  }
+
+  .alpha-cell.highlight-cipher {
+    background: var(--green) !important;
+    color: #000 !important;
+    border-color: var(--green) !important;
+    box-shadow: 0 0 10px rgba(0,255,136,0.7);
+  }
+
+  .arrow-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 16px;
+    gap: 3px;
+  }
+
+  .arrow-cell {
+    min-width: 26px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    color: rgba(0,255,136,0.3);
+    flex-shrink: 0;
+  }
+
+  /* Controls */
+  .controls {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+  }
+
+  .controls-header {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.8rem;
+    color: var(--green);
+    letter-spacing: 0.15em;
+    margin-bottom: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .controls-header::before {
+    content: '▶';
+    font-size: 0.6rem;
+  }
+
+  .field-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  @media (max-width: 560px) {
+    .field-group { grid-template-columns: 1fr; }
+  }
+
+  label {
+    font-size: 0.7rem;
+    color: var(--green-dim);
+    letter-spacing: 0.2em;
+    display: block;
+    margin-bottom: 0.4rem;
+  }
+
+  input[type="text"], select {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.9rem;
+    padding: 0.6rem 0.8rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  input[type="text"]:focus, select:focus {
+    border-color: var(--green);
+    box-shadow: 0 0 12px var(--green-glow);
+  }
+
+  .shift-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    background: var(--green);
+    border-radius: 0;
+    box-shadow: 0 0 10px rgba(0,255,136,0.6);
+    cursor: pointer;
+  }
+
+  .shift-val {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.2rem;
+    color: var(--amber);
+    min-width: 2rem;
+    text-align: center;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+  }
+
+  button {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.15em;
+    padding: 0.7rem 1.4rem;
+    cursor: pointer;
+    border: 1px solid;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+
+  .btn-primary {
+    background: var(--green);
+    color: #000;
+    border-color: var(--green);
+    font-weight: 700;
+  }
+
+  .btn-primary:hover {
+    box-shadow: 0 0 20px rgba(0,255,136,0.6);
+    background: #00ffaa;
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--green-dim);
+    border-color: var(--border);
+  }
+
+  .btn-secondary:hover {
+    border-color: var(--green);
+    color: var(--green);
+    box-shadow: 0 0 10px var(--green-glow);
+  }
+
+  .btn-danger {
+    background: transparent;
+    color: var(--red);
+    border-color: rgba(255,68,102,0.4);
+  }
+
+  .btn-danger:hover {
+    background: rgba(255,68,102,0.1);
+    box-shadow: 0 0 10px rgba(255,68,102,0.3);
+  }
+
+  /* Output */
+  .output-section {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+  }
+
+  .output-label {
+    font-size: 0.7rem;
+    color: var(--green-dim);
+    letter-spacing: 0.2em;
+    margin-bottom: 0.5rem;
+  }
+
+  .output-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 1rem;
+    font-size: 1.05rem;
+    color: var(--green);
+    min-height: 60px;
+    word-break: break-all;
+    letter-spacing: 0.08em;
+    position: relative;
+    transition: all 0.3s;
+  }
+
+  .output-box.glow {
+    box-shadow: 0 0 20px var(--green-glow);
+  }
+
+  .output-box .cursor {
+    display: inline-block;
+    width: 10px;
+    height: 1em;
+    background: var(--green);
+    margin-left: 2px;
+    animation: blink 1s infinite;
+    vertical-align: text-bottom;
+  }
+
+  @keyframes blink {
+    0%,50% { opacity: 1; }
+    51%,100% { opacity: 0; }
+  }
+
+  /* Step-by-step */
+  .steps-section {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+  }
+
+  .steps-header {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.8rem;
+    color: var(--green);
+    letter-spacing: 0.15em;
+    margin-bottom: 1rem;
+  }
+
+  .steps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 6px;
+  }
+
+  .step-cell {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 0.5rem;
+    text-align: center;
+    font-size: 0.75rem;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.3s, transform 0.3s;
+  }
+
+  .step-cell.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .step-letter {
+    font-size: 1.1rem;
+    color: var(--amber);
+  }
+
+  .step-arrow { color: rgba(0,255,136,0.4); font-size: 0.7rem; margin: 2px 0; }
+
+  .step-result {
+    font-size: 1.1rem;
+    color: var(--green);
+    text-shadow: 0 0 8px rgba(0,255,136,0.5);
+  }
+
+  .step-pos {
+    font-size: 0.6rem;
+    color: rgba(0,255,136,0.4);
+    margin-top: 2px;
+  }
+
+  /* Brute force */
+  .brute-section {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+  }
+
+  .brute-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    margin-top: 0.8rem;
+  }
+
+  .brute-table th {
+    text-align: left;
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--green-dim);
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+  }
+
+  .brute-table td {
+    padding: 0.35rem 0.6rem;
+    border-bottom: 1px solid rgba(0,255,136,0.07);
+    color: var(--text);
+    word-break: break-all;
+  }
+
+  .brute-table tr:hover td {
+    background: var(--green-glow);
+    cursor: pointer;
+  }
+
+  .brute-table .shift-col {
+    color: var(--amber);
+    font-family: 'Orbitron', monospace;
+    text-align: center;
+    min-width: 40px;
+  }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    padding: 2rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.7rem;
+    color: rgba(0,255,136,0.3);
+    letter-spacing: 0.15em;
+  }
+
+  .deploy-info {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--amber);
+    padding: 1.5rem;
+    position: relative;
+  }
+
+  .deploy-info::before {
+    content: '// DEPLOY';
+    position: absolute;
+    top: 0.5rem; right: 0.8rem;
+    font-size: 0.65rem;
+    color: rgba(255,204,0,0.3);
+    letter-spacing: 0.2em;
+  }
+
+  .deploy-info h2 {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.85rem;
+    color: var(--amber);
+    margin-bottom: 0.8rem;
+    letter-spacing: 0.1em;
+  }
+
+  .deploy-info p, .deploy-info li {
+    font-size: 0.8rem;
+    line-height: 1.7;
+    color: var(--text);
+    opacity: 0.9;
+  }
+
+  .deploy-info ul { padding-left: 1.2rem; margin-top: 0.5rem; }
+  .deploy-info li { margin-bottom: 0.3rem; }
+
+  .tag {
+    display: inline-block;
+    background: rgba(255,204,0,0.1);
+    border: 1px solid rgba(255,204,0,0.4);
+    color: var(--amber);
+    font-size: 0.65rem;
+    padding: 0.1rem 0.5rem;
+    margin-right: 0.3rem;
+    letter-spacing: 0.1em;
+  }
+
+  .section-divider {
+    text-align: center;
+    color: rgba(0,255,136,0.2);
+    font-size: 0.7rem;
+    letter-spacing: 0.5em;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">CIFRA DE CÉSAR</div>
+  <div class="subtitle">Demonstração Didática Interativa</div>
+  <div class="badge">Criptografia Clássica · ROT-N · 26 Posições</div>
+</header>
+
+<div class="container">
+
+  <!-- TEORIA -->
+  <div class="theory">
+    <h2>O QUE É A CIFRA DE CÉSAR?</h2>
+    <p>
+      Uma das cifras de substituição mais antigas conhecidas, utilizada por Júlio César (~58 a.C.) para comunicações militares secretas.
+      Cada letra do texto original é substituída pela letra que está <strong style="color:var(--amber)">N posições à frente</strong> no alfabeto, de forma circular.
+    </p>
+    <div class="formula">
+      Cifrar: C = (P + N) mod 26
+    </div>
+    <br>
+    <div class="formula">
+      Decifrar: P = (C − N + 26) mod 26
+    </div>
+    <p style="margin-top:0.8rem;">
+      César usava deslocamento <strong style="color:var(--amber)">N=3</strong>. Portanto: A→D, B→E, C→F... Z→C.
+      É uma cifra simétrica: a mesma chave (N) cifra e decifra.
+    </p>
+  </div>
+
+  <!-- RODA DO ALFABETO -->
+  <div class="wheel-section">
+    <div class="wheel-label">▲ MAPEAMENTO DO ALFABETO (DESLOCAMENTO: <span id="wheelShiftDisplay">3</span>) ▲</div>
+    <div class="alphabet-row" id="plainRow"></div>
+    <div class="arrow-row" id="arrowRow"></div>
+    <div class="alphabet-row" id="cipherRow"></div>
+    <div style="display:flex;justify-content:center;gap:2rem;margin-top:0.8rem;font-size:0.68rem;">
+      <span><span style="display:inline-block;width:12px;height:12px;background:var(--bg3);border:1px solid var(--border);vertical-align:middle;margin-right:4px;"></span>TEXTO ORIGINAL</span>
+      <span><span style="display:inline-block;width:12px;height:12px;background:var(--green-dark);border:1px solid var(--border);vertical-align:middle;margin-right:4px;"></span>TEXTO CIFRADO</span>
+    </div>
+  </div>
+
+  <!-- CONTROLES -->
+  <div class="controls">
+    <div class="controls-header">CONFIGURAR CIFRA</div>
+
+    <div class="field-group">
+      <div>
+        <label>TEXTO DE ENTRADA</label>
+        <input type="text" id="inputText" placeholder="Digite o texto aqui..." value="HELLO WORLD" oninput="onInputChange()" />
+      </div>
+      <div>
+        <label>DESLOCAMENTO (N)</label>
+        <div class="shift-wrapper">
+          <input type="range" id="shiftRange" min="1" max="25" value="3" oninput="onShiftChange()" />
+          <span class="shift-val" id="shiftVal">3</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="field-group">
+      <div>
+        <label>MODO</label>
+        <select id="modeSelect" onchange="onProcess()">
+          <option value="encode">CIFRAR (Encode)</option>
+          <option value="decode">DECIFRAR (Decode)</option>
+        </select>
+      </div>
+      <div>
+        <label>PRESERVAR ESPAÇOS / PONTUAÇÃO</label>
+        <select id="preserveSelect" onchange="onProcess()">
+          <option value="yes">SIM — manter como estão</option>
+          <option value="no">NÃO — remover</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-primary" onclick="onProcess()">▶ PROCESSAR</button>
+      <button class="btn-secondary" onclick="swapInputOutput()">⇅ TROCAR ENTRADA/SAÍDA</button>
+      <button class="btn-secondary" onclick="copyOutput()">⊕ COPIAR RESULTADO</button>
+      <button class="btn-danger" onclick="clearAll()">✕ LIMPAR</button>
+    </div>
+  </div>
+
+  <!-- SAÍDA -->
+  <div class="output-section">
+    <div class="output-label">RESULTADO</div>
+    <div class="output-box" id="outputBox">
+      <span id="outputText"></span><span class="cursor"></span>
+    </div>
+  </div>
+
+  <!-- PASSO A PASSO -->
+  <div class="steps-section">
+    <div class="steps-header">▶ PASSO A PASSO — CADA CARACTERE</div>
+    <div class="steps-grid" id="stepsGrid"></div>
+  </div>
+
+  <!-- FORÇA BRUTA -->
+  <div class="brute-section">
+    <div class="steps-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>▶ FORÇA BRUTA — TODOS OS 25 DESLOCAMENTOS</span>
+      <button class="btn-secondary" onclick="toggleBrute()" id="bruteBtn" style="font-size:0.65rem;padding:0.4rem 0.8rem;">MOSTRAR</button>
+    </div>
+    <div id="bruteContainer" style="display:none;">
+      <p style="font-size:0.75rem;color:var(--text);opacity:0.7;margin:0.5rem 0;">
+        Clique numa linha para usar aquele deslocamento como entrada.
+      </p>
+      <table class="brute-table" id="bruteTable">
+        <thead>
+          <tr>
+            <th>N</th>
+            <th>TEXTO DECIFRADO</th>
+          </tr>
+        </thead>
+        <tbody id="bruteTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- DEPLOY INFO -->
+  <div class="deploy-info">
+    <h2>🚀 COMO PUBLICAR GRATUITAMENTE</h2>
+    <p>Este arquivo HTML é 100% independente — funciona diretamente no browser sem servidor. Veja as opções para publicar:</p>
+    <ul>
+      <li><span class="tag">GITHUB PAGES</span> Suba o <code>index.html</code> em um repositório público e ative Pages em Settings. URL grátis: <em>usuario.github.io/repo</em></li>
+      <li><span class="tag">NETLIFY</span> Arraste a pasta no netlify.com/drop. Deploy em segundos, URL grátis e SSL automático.</li>
+      <li><span class="tag">VERCEL</span> Conecte um repositório GitHub ou faça deploy via <code>vercel --prod</code>. Plano hobby gratuito.</li>
+      <li><span class="tag">CODEPEN</span> Cole o HTML em codepen.io para compartilhar e editar online (ótimo para fins didáticos).</li>
+      <li><span class="tag">GLITCH</span> glitch.com — edição colaborativa ao vivo, ideal para sala de aula.</li>
+    </ul>
+    <p style="margin-top:0.8rem;"><strong style="color:var(--amber)">Para a versão Node.js</strong>, use Railway, Render ou Glitch — todos possuem plano gratuito e suportam aplicações Express.</p>
+  </div>
+
+</div>
+
+<footer>
+  CIFRA DE CÉSAR · FINS DIDÁTICOS · CRIPTOGRAFIA CLÁSSICA<br>
+  Algoritmo: substituição monoalfabética · Segurança: nenhuma (26 chaves possíveis)
+</footer>
+
+<script>
+  // ===================== CORE ALGORITHM =====================
+  const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+  function caesarChar(char, shift, decode) {
+    const upper = char.toUpperCase();
+    const idx = ALPHA.indexOf(upper);
+    if (idx === -1) return null; // non-alpha
+    const n = decode ? (26 - shift) : shift;
+    return ALPHA[(idx + n) % 26];
+  }
+
+  function caesarProcess(text, shift, decode, preserve) {
+    let result = '';
+    for (const ch of text) {
+      const transformed = caesarChar(ch, shift, decode);
+      if (transformed === null) {
+        result += preserve ? ch : '';
+      } else {
+        result += ch === ch.toUpperCase() ? transformed : transformed.toLowerCase();
+      }
+    }
+    return result;
+  }
+
+  function buildSteps(text, shift, decode, preserve) {
+    const steps = [];
+    for (const ch of text.toUpperCase()) {
+      const idx = ALPHA.indexOf(ch);
+      if (idx === -1) {
+        if (preserve) steps.push({ orig: ch, result: ch, pos: '-', newPos: '-', space: true });
+        continue;
+      }
+      const n = decode ? (26 - shift) : shift;
+      const newIdx = (idx + n) % 26;
+      steps.push({
+        orig: ch,
+        result: ALPHA[newIdx],
+        pos: idx,
+        newPos: newIdx
+      });
+    }
+    return steps;
+  }
+
+  // ===================== STATE =====================
+  let currentOutput = '';
+
+  function getShift() { return parseInt(document.getElementById('shiftRange').value); }
+  function getDecode() { return document.getElementById('modeSelect').value === 'decode'; }
+  function getPreserve() { return document.getElementById('preserveSelect').value === 'yes'; }
+
+  function onShiftChange() {
+    const s = getShift();
+    document.getElementById('shiftVal').textContent = s;
+    document.getElementById('wheelShiftDisplay').textContent = s;
+    renderWheel(s);
+    onProcess();
+  }
+
+  function onInputChange() { onProcess(); }
+
+  function onProcess() {
+    const text = document.getElementById('inputText').value;
+    const shift = getShift();
+    const decode = getDecode();
+    const preserve = getPreserve();
+
+    currentOutput = caesarProcess(text, shift, decode, preserve);
+    document.getElementById('outputText').textContent = currentOutput;
+
+    const box = document.getElementById('outputBox');
+    box.classList.remove('glow');
+    void box.offsetWidth;
+    box.classList.add('glow');
+
+    renderSteps(text, shift, decode, preserve);
+    renderBrute(text, preserve);
+    renderWheel(shift);
+  }
+
+  // ===================== WHEEL =====================
+  function renderWheel(shift) {
+    const plainRow = document.getElementById('plainRow');
+    const cipherRow = document.getElementById('cipherRow');
+    const arrowRow = document.getElementById('arrowRow');
+
+    plainRow.innerHTML = '';
+    cipherRow.innerHTML = '';
+    arrowRow.innerHTML = '';
+
+    for (let i = 0; i < 26; i++) {
+      const ci = (i + shift) % 26;
+
+      const p = document.createElement('div');
+      p.className = 'alpha-cell plain';
+      p.id = `plain-${i}`;
+      p.textContent = ALPHA[i];
+      plainRow.appendChild(p);
+
+      const a = document.createElement('div');
+      a.className = 'arrow-cell';
+      a.textContent = '↓';
+      arrowRow.appendChild(a);
+
+      const c = document.createElement('div');
+      c.className = 'alpha-cell cipher';
+      c.id = `cipher-${i}`;
+      c.textContent = ALPHA[ci];
+      cipherRow.appendChild(c);
+    }
+  }
+
+  function highlightWheel(plainIdx) {
+    document.querySelectorAll('.alpha-cell').forEach(el => {
+      el.classList.remove('highlight-plain', 'highlight-cipher');
+    });
+    if (plainIdx < 0) return;
+    document.getElementById(`plain-${plainIdx}`)?.classList.add('highlight-plain');
+    document.getElementById(`cipher-${plainIdx}`)?.classList.add('highlight-cipher');
+  }
+
+  // ===================== STEPS =====================
+  function renderSteps(text, shift, decode, preserve) {
+    const grid = document.getElementById('stepsGrid');
+    grid.innerHTML = '';
+    const steps = buildSteps(text, shift, decode, preserve);
+
+    steps.forEach((s, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'step-cell';
+
+      if (s.space) {
+        cell.innerHTML = `
+          <div class="step-letter" style="color:var(--text);opacity:0.4;">${s.orig === ' ' ? '␣' : s.orig}</div>
+          <div class="step-arrow">→</div>
+          <div class="step-result" style="color:var(--text);opacity:0.4;">${s.result === ' ' ? '␣' : s.result}</div>
+          <div class="step-pos">mantido</div>
+        `;
+      } else {
+        const dir = decode ? '−' : '+';
+        cell.innerHTML = `
+          <div class="step-letter">${s.orig}</div>
+          <div class="step-arrow">[${s.pos}] ${dir}${shift} = [${s.newPos}]</div>
+          <div class="step-result">${s.result}</div>
+          <div class="step-pos">mod 26</div>
+        `;
+        cell.addEventListener('mouseenter', () => highlightWheel(s.pos));
+        cell.addEventListener('mouseleave', () => highlightWheel(-1));
+      }
+
+      grid.appendChild(cell);
+      setTimeout(() => cell.classList.add('visible'), i * 40);
+    });
+  }
+
+  // ===================== BRUTE FORCE =====================
+  let bruteVisible = false;
+
+  function toggleBrute() {
+    bruteVisible = !bruteVisible;
+    document.getElementById('bruteContainer').style.display = bruteVisible ? 'block' : 'none';
+    document.getElementById('bruteBtn').textContent = bruteVisible ? 'OCULTAR' : 'MOSTRAR';
+    if (bruteVisible) renderBrute(document.getElementById('inputText').value, getPreserve());
+  }
+
+  function renderBrute(text, preserve) {
+    if (!bruteVisible) return;
+    const tbody = document.getElementById('bruteTbody');
+    tbody.innerHTML = '';
+    for (let n = 1; n <= 25; n++) {
+      const decoded = caesarProcess(text, n, true, preserve);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="shift-col">${n}</td><td>${decoded || '—'}</td>`;
+      tr.addEventListener('click', () => {
+        document.getElementById('shiftRange').value = n;
+        document.getElementById('modeSelect').value = 'decode';
+        onShiftChange();
+      });
+      tbody.appendChild(tr);
+    }
+  }
+
+  // ===================== UTILS =====================
+  function swapInputOutput() {
+    if (!currentOutput) return;
+    document.getElementById('inputText').value = currentOutput;
+    const mode = document.getElementById('modeSelect');
+    mode.value = mode.value === 'encode' ? 'decode' : 'encode';
+    onProcess();
+  }
+
+  function copyOutput() {
+    if (!currentOutput) return;
+    navigator.clipboard.writeText(currentOutput).then(() => {
+      const btn = event.target;
+      const orig = btn.textContent;
+      btn.textContent = '✓ COPIADO';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    });
+  }
+
+  function clearAll() {
+    document.getElementById('inputText').value = '';
+    document.getElementById('outputText').textContent = '';
+    document.getElementById('stepsGrid').innerHTML = '';
+    currentOutput = '';
+    highlightWheel(-1);
+  }
+
+  // ===================== INIT =====================
+  renderWheel(3);
+  onProcess();
+</script>
+</body>
+</html>
